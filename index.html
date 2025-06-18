@@ -209,6 +209,25 @@
         border: 1px solid #ff6b35;
       }
       
+      .buttons .undo-btn {
+        background: #6f42c1;
+        border: 1px solid #6f42c1;
+      }
+      
+      .buttons .redo-btn {
+        background: #e83e8c;
+        border: 1px solid #e83e8c;
+      }
+      
+      .buttons .undo-btn:disabled,
+      .buttons .redo-btn:disabled {
+        background: #e9ecef;
+        border-color: #e9ecef;
+        color: #6c757d;
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
+      
       .drawing-board {
         flex: 1;
         overflow: hidden;
@@ -333,7 +352,7 @@
         .tools-board {
           width: 100%;
           padding: 8px 10px;
-          max-height: 200px;
+          max-height: 220px;
           overflow-y: auto;
           order: 2;
         }
@@ -384,13 +403,13 @@
           padding: 8px 4px;
           font-size: 0.7rem;
           margin-bottom: 4px;
-          min-width: 70px;
+          min-width: 60px;
         }
         
         .drawing-board {
           order: 1;
           flex: 1;
-          height: calc(100vh - 220px);
+          height: calc(100vh - 240px);
         }
         
         .title {
@@ -417,17 +436,18 @@
       
       @media (max-width: 480px) {
         .tools-board {
-          max-height: 180px;
+          max-height: 200px;
           padding: 6px 8px;
         }
         
         .drawing-board {
-          height: calc(100vh - 200px);
+          height: calc(100vh - 220px);
         }
         
         .buttons button {
           font-size: 0.65rem;
           padding: 6px 2px;
+          min-width: 50px;
         }
         
         .option :where(span, label) {
@@ -534,6 +554,8 @@
           </ul>
         </div>
         <div class="row buttons">
+          <button class="undo-btn" disabled>Undo</button>
+          <button class="redo-btn" disabled>Redo</button>
           <button class="clear-canvas">Clear</button>
           <button class="save-img">Save</button>
           <button class="upload-img">Upload Image</button>
@@ -579,6 +601,9 @@
       mobileTextDone = document.querySelector(".mobile-text-done"),
       mobileTextCancel = document.querySelector(".mobile-text-cancel"),
       imagePasteHint = document.querySelector(".image-paste-hint"),
+      undoBtn = document.querySelector(".undo-btn"),
+      redoBtn = document.querySelector(".redo-btn"),
+      fullscreenBtn = document.querySelector(".fullscreen-toggle"),
       ctx = canvas.getContext("2d");
 
       let prevMouseX, prevMouseY, snapshot,
@@ -588,410 +613,442 @@
       selectedColor = "#000",
       pendingTextPosition = null;
 
+      // History management for Undo/Redo
+      let history = [];
+      let historyStep = -1;
+      const MAX_HISTORY = 50;
+
+      const saveState = () => {
+        historyStep++;
+        if (historyStep < history.length) {
+          history.length = historyStep;
+        }
+        history.push(canvas.toDataURL());
+        
+        if (history.length > MAX_HISTORY) {
+          history.shift();
+          historyStep--;
+        }
+        
+        updateUndoRedoButtons();
+      };
+
+      const updateUndoRedoButtons = () => {
+        undoBtn.disabled = historyStep <= 0;
+        redoBtn.disabled = historyStep >= history.length - 1;
+      };
+
+      const undo = () => {
+        if (historyStep > 0) {
+          historyStep--;
+          restoreState();
+        }
+      };
+
+      const redo = () => {
+        if (historyStep < history.length - 1) {
+          historyStep++;
+          restoreState();
+        }
+      };
+
+      const restoreState = () => {
+        const img = new Image();
+        img.onload = () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0);
+          updateUndoRedoButtons();
+        };
+        img.src = history[historyStep];
+      };
+
       const setCanvasBackground = () => {
-          ctx.fillStyle = "#fff";
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.fillStyle = selectedColor;
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = selectedColor;
       };
 
       const resizeCanvas = () => {
-          const canvasRect = canvas.getBoundingClientRect();
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-          canvas.width = canvasRect.width;
-          canvas.height = canvasRect.height;
-          setCanvasBackground();
-          // Restore the image if it exists
-          if (imageData.width > 0 && imageData.height > 0) {
-              ctx.putImageData(imageData, 0, 0);
-          }
+        const canvasRect = canvas.getBoundingClientRect();
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        canvas.width = canvasRect.width;
+        canvas.height = canvasRect.height;
+        setCanvasBackground();
+        if (imageData.width > 0 && imageData.height > 0) {
+          ctx.putImageData(imageData, 0, 0);
+        }
       };
 
       window.addEventListener("load", () => {
-          resizeCanvas();
+        resizeCanvas();
+        saveState();
       });
 
+      window.addEventListener("resize", resizeCanvas);
+
       const drawRect = (e) => {
-          const rect = canvas.getBoundingClientRect();
-          const x = (e.clientX || e.touches[0].clientX) - rect.left;
-          const y = (e.clientY || e.touches[0].clientY) - rect.top;
-          
-          if(!fillColor.checked) {
-              return ctx.strokeRect(x, y, prevMouseX - x, prevMouseY - y);
-          }
-          ctx.fillRect(x, y, prevMouseX - x, prevMouseY - y);
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX || e.touches[0].clientX) - rect.left;
+        const y = (e.clientY || e.touches[0].clientY) - rect.top;
+        
+        if(!fillColor.checked) {
+          return ctx.strokeRect(x, y, prevMouseX - x, prevMouseY - y);
+        }
+        ctx.fillRect(x, y, prevMouseX - x, prevMouseY - y);
       };
 
       const drawCircle = (e) => {
-          const rect = canvas.getBoundingClientRect();
-          const x = (e.clientX || e.touches[0].clientX) - rect.left;
-          const y = (e.clientY || e.touches[0].clientY) - rect.top;
-          
-          ctx.beginPath();
-          let radius = Math.sqrt(Math.pow((prevMouseX - x), 2) + Math.pow((prevMouseY - y), 2));
-          ctx.arc(prevMouseX, prevMouseY, radius, 0, 2 * Math.PI);
-          fillColor.checked ? ctx.fill() : ctx.stroke();
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX || e.touches[0].clientX) - rect.left;
+        const y = (e.clientY || e.touches[0].clientY) - rect.top;
+        
+        ctx.beginPath();
+        let radius = Math.sqrt(Math.pow((prevMouseX - x), 2) + Math.pow((prevMouseY - y), 2));
+        ctx.arc(prevMouseX, prevMouseY, radius, 0, 2 * Math.PI);
+        fillColor.checked ? ctx.fill() : ctx.stroke();
       };
 
       const drawTriangle = (e) => {
-          const rect = canvas.getBoundingClientRect();
-          const x = (e.clientX || e.touches[0].clientX) - rect.left;
-          const y = (e.clientY || e.touches[0].clientY) - rect.top;
-          
-          ctx.beginPath();
-          ctx.moveTo(prevMouseX, prevMouseY);
-          ctx.lineTo(x, y);
-          ctx.lineTo(prevMouseX * 2 - x, y);
-          ctx.closePath();
-          fillColor.checked ? ctx.fill() : ctx.stroke();
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX || e.touches[0].clientX) - rect.left;
+        const y = (e.clientY || e.touches[0].clientY) - rect.top;
+        
+        ctx.beginPath();
+        ctx.moveTo(prevMouseX, prevMouseY);
+        ctx.lineTo(x, y);
+        ctx.lineTo(prevMouseX * 2 - x, y);
+        ctx.closePath();
+        fillColor.checked ? ctx.fill() : ctx.stroke();
       };
 
       const getEventPos = (e) => {
-          const rect = canvas.getBoundingClientRect();
-          return {
-              x: (e.clientX || e.touches[0].clientX) - rect.left,
-              y: (e.clientY || e.touches[0].clientY) - rect.top
-          };
+        const rect = canvas.getBoundingClientRect();
+        return {
+          x: (e.clientX || e.touches[0].clientX) - rect.left,
+          y: (e.clientY || e.touches[0].clientY) - rect.top
+        };
       };
 
       const startDraw = (e) => {
-          e.preventDefault();
-          isDrawing = true;
+        e.preventDefault();
+        
+        if (selectedTool === "text") {
           const pos = getEventPos(e);
-          prevMouseX = pos.x;
-          prevMouseY = pos.y;
-          ctx.beginPath();
-          ctx.lineWidth = brushWidth;
-          ctx.strokeStyle = selectedColor;
-          ctx.fillStyle = selectedColor;
-          snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          createTextInput(pos.x, pos.y);
+          return;
+        }
+        
+        isDrawing = true;
+        const pos = getEventPos(e);
+        prevMouseX = pos.x;
+        prevMouseY = pos.y;
+        ctx.beginPath();
+        ctx.lineWidth = brushWidth;
+        ctx.strokeStyle = selectedColor;
+        ctx.fillStyle = selectedColor;
+        snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
       };
 
       const drawing = (e) => {
-          e.preventDefault();
-          if(!isDrawing) return;
-          ctx.putImageData(snapshot, 0, 0);
-          const pos = getEventPos(e);
-          
-          if(selectedTool === "brush" || selectedTool === "eraser") {
-              ctx.strokeStyle = selectedTool === "eraser" ? "#fff" : selectedColor;
-              ctx.lineTo(pos.x, pos.y);
-              ctx.stroke();
-          } else if(selectedTool === "rectangle") {
-              drawRect(e);
-          } else if(selectedTool === "circle") {
-              drawCircle(e);
-          } else if(selectedTool === "triangle") {
-              drawTriangle(e);
-          }
+        e.preventDefault();
+        if(!isDrawing) return;
+        ctx.putImageData(snapshot, 0, 0);
+        const pos = getEventPos(e);
+        
+        if(selectedTool === "brush" || selectedTool === "eraser") {
+          ctx.strokeStyle = selectedTool === "eraser" ? "#fff" : selectedColor;
+          ctx.lineTo(pos.x, pos.y);
+          ctx.stroke();
+        } else if(selectedTool === "rectangle") {
+          drawRect(e);
+        } else if(selectedTool === "circle") {
+          drawCircle(e);
+        } else if(selectedTool === "triangle") {
+          drawTriangle(e);
+        }
       };
+
+      const endDraw = () => {
+        if (isDrawing) {
+          isDrawing = false;
+          saveState();
+        }
+      };
+
+      // Enhanced text tool logic
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
+
+      const createTextInput = (x, y) => {
+        if (isMobile) {
+          pendingTextPosition = { x, y };
+          mobileTextOverlay.style.display = 'flex';
+          setTimeout(() => {
+            mobileTextInput.focus();
+          }, 100);
+        } else {
+          // Desktop version
+          if (document.querySelector('.canvas-text-input')) {
+            document.querySelector('.canvas-text-input').remove();
+          }
+          
+          const textInput = document.createElement('input');
+          textInput.className = 'canvas-text-input';
+          textInput.type = 'text';
+          textInput.placeholder = 'Enter text...';
+          textInput.style.left = x + 'px';
+          textInput.style.top = y + 'px';
+          textInput.style.fontSize = brushWidth * 2 + 'px';
+          textInput.style.color = selectedColor;
+          
+          document.querySelector('.drawing-board').appendChild(textInput);
+          textInput.focus();
+          
+          const finishText = () => {
+            const text = textInput.value.trim();
+            if (text) {
+              ctx.font = `${brushWidth * 2}px Poppins, sans-serif`;
+              ctx.fillStyle = selectedColor;
+              ctx.fillText(text, x, y + brushWidth * 2);
+              saveState();
+            }
+            textInput.remove();
+          };
+          
+          textInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              finishText();
+            } else if (e.key === 'Escape') {
+              textInput.remove();
+            }
+          });
+          
+          textInput.addEventListener('blur', finishText);
+        }
+      };
+
+      // Mobile text input handlers
+      mobileTextDone.addEventListener('click', () => {
+        const text = mobileTextInput.value.trim();
+        if (text && pendingTextPosition) {
+          ctx.font = `${brushWidth * 2}px Poppins, sans-serif`;
+          ctx.fillStyle = selectedColor;
+          ctx.fillText(text, pendingTextPosition.x, pendingTextPosition.y + brushWidth * 2);
+          saveState();
+        }
+        mobileTextInput.value = '';
+        mobileTextOverlay.style.display = 'none';
+        pendingTextPosition = null;
+      });
+
+      mobileTextCancel.addEventListener('click', () => {
+        mobileTextInput.value = '';
+        mobileTextOverlay.style.display = 'none';
+        pendingTextPosition = null;
+      });
+
+      mobileTextInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          mobileTextDone.click();
+        }
+      });
 
       // Tool selection
       toolBtns.forEach(btn => {
-          btn.addEventListener("click", () => {
-              document.querySelector(".options .active")?.classList.remove("active");
-              btn.classList.add("active");
-              selectedTool = btn.id;
-              canvas.style.cursor = selectedTool === "text" ? "text" : "crosshair";
-          });
+        btn.addEventListener("click", () => {
+          document.querySelector(".options .active")?.classList.remove("active");
+          btn.classList.add("active");
+          selectedTool = btn.id;
+          canvas.style.cursor = selectedTool === "text" ? "text" : "crosshair";
+        });
       });
 
       sizeSlider.addEventListener("change", () => brushWidth = sizeSlider.value);
 
       colorBtns.forEach(btn => {
-          btn.addEventListener("click", () => {
-              document.querySelector(".options .selected")?.classList.remove("selected");
-              btn.classList.add("selected");
-              selectedColor = window.getComputedStyle(btn).getPropertyValue("background-color");
-          });
+        btn.addEventListener("click", () => {
+          document.querySelector(".options .selected")?.classList.remove("selected");
+          btn.classList.add("selected");
+          selectedColor = window.getComputedStyle(btn).getPropertyValue("background-color");
+        });
       });
 
       colorPicker.addEventListener("change", () => {
-          colorPicker.parentElement.style.background = colorPicker.value;
-          colorPicker.parentElement.click();
+        colorPicker.parentElement.style.background = colorPicker.value;
+        selectedColor = colorPicker.value;
+        colorPicker.parentElement.click();
       });
 
       clearCanvas.addEventListener("click", () => {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          setCanvasBackground();
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        setCanvasBackground();
+        saveState();
       });
 
       saveImg.addEventListener("click", () => {
-          const link = document.createElement("a");
-          link.download = `drawing-${Date.now()}.jpg`;
-          link.href = canvas.toDataURL();
-          link.click();
+        const link = document.createElement("a");
+        link.download = `drawing-${Date.now()}.jpg`;
+        link.href = canvas.toDataURL();
+        link.click();
       });
 
-      // Image upload functionality
+        // Image upload functionality
       uploadImg.addEventListener("click", () => {
-          imgUpload.click();
+        imgUpload.click();
       });
 
       imgUpload.addEventListener("change", (e) => {
-          const file = e.target.files[0];
-          if (file) {
-              const reader = new FileReader();
-              reader.onload = (event) => {
-                  const img = new Image();
-                  img.onload = () => {
-                      // Calculate scaling to fit canvas while maintaining aspect ratio
-                      const maxWidth = canvas.width * 0.8;
-                      const maxHeight = canvas.height * 0.8;
-                      let { width, height } = img;
-                      
-                      if (width > maxWidth) {
-                          height = (height * maxWidth) / width;
-                          width = maxWidth;
-                      }
-                      if (height > maxHeight) {
-                          width = (width * maxHeight) / height;
-                          height = maxHeight;
-                      }
-                      
-                      // Center the image
-                      const x = (canvas.width - width) / 2;
-                      const y = (canvas.height - height) / 2;
-                      
-                      ctx.drawImage(img, x, y, width, height);
-                  };
-                  img.src = event.target.result;
-              };
-              reader.readAsDataURL(file);
-          }
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+              // Calculate dimensions to fit canvas while maintaining aspect ratio
+              const canvasWidth = canvas.width;
+              const canvasHeight = canvas.height;
+              let width = img.width;
+              let height = img.height;
+              
+              if (width > canvasWidth) {
+                const ratio = canvasWidth / width;
+                width = canvasWidth;
+                height = height * ratio;
+              }
+              
+              if (height > canvasHeight) {
+                const ratio = canvasHeight / height;
+                height = canvasHeight;
+                width = width * ratio;
+              }
+              
+              // Center the image on canvas
+              const x = (canvasWidth - width) / 2;
+              const y = (canvasHeight - height) / 2;
+              
+              ctx.drawImage(img, x, y, width, height);
+              saveState();
+            };
+            img.src = event.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
+        imgUpload.value = ""; // Reset input to allow same file to be uploaded again
       });
 
-      // Mouse events
+      // Paste image from clipboard
+      document.addEventListener('paste', (e) => {
+        if (selectedTool !== "brush") return;
+        
+        const items = e.clipboardData.items;
+        for (let i = 0; i < items.length; i++) {
+          if (items[i].type.indexOf('image') !== -1) {
+            const blob = items[i].getAsFile();
+            const reader = new FileReader();
+            
+            // Show paste hint
+            imagePasteHint.style.display = 'block';
+            setTimeout(() => {
+              imagePasteHint.style.display = 'none';
+            }, 2000);
+            
+            reader.onload = (event) => {
+              const img = new Image();
+              img.onload = () => {
+                // Calculate dimensions to fit canvas while maintaining aspect ratio
+                const canvasWidth = canvas.width;
+                const canvasHeight = canvas.height;
+                let width = img.width;
+                let height = img.height;
+                
+                if (width > canvasWidth) {
+                  const ratio = canvasWidth / width;
+                  width = canvasWidth;
+                  height = height * ratio;
+                }
+                
+                if (height > canvasHeight) {
+                  const ratio = canvasHeight / height;
+                  height = canvasHeight;
+                  width = width * ratio;
+                }
+                
+                // Center the image on canvas
+                const x = (canvasWidth - width) / 2;
+                const y = (canvasHeight - height) / 2;
+                
+                ctx.drawImage(img, x, y, width, height);
+                saveState();
+              };
+              img.src = event.target.result;
+            };
+            reader.readAsDataURL(blob);
+            break;
+          }
+        }
+      });
+
+      // Fullscreen functionality
+      fullscreenBtn.addEventListener("click", () => {
+        if (!document.fullscreenElement) {
+          document.querySelector(".container").requestFullscreen().catch(err => {
+            console.error(`Error attempting to enable fullscreen: ${err.message}`);
+          });
+          fullscreenBtn.textContent = "Exit Fullscreen";
+        } else {
+          document.exitFullscreen();
+          fullscreenBtn.textContent = "Fullscreen";
+        }
+      });
+
+      document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement) {
+          fullscreenBtn.textContent = "Fullscreen";
+        }
+        resizeCanvas();
+      });
+
+      // Undo/Redo functionality
+      undoBtn.addEventListener("click", undo);
+      redoBtn.addEventListener("click", redo);
+
+      // Keyboard shortcuts
+      document.addEventListener("keydown", (e) => {
+        // Undo: Ctrl+Z (Cmd+Z on Mac)
+        if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+          if (e.shiftKey) {
+            redo();
+          } else {
+            undo();
+          }
+          e.preventDefault();
+        }
+        
+        // Save: Ctrl+S (Cmd+S on Mac)
+        if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+          saveImg.click();
+          e.preventDefault();
+        }
+        
+        // Clear: Ctrl+Delete (Cmd+Delete on Mac)
+        if ((e.ctrlKey || e.metaKey) && e.key === "Delete") {
+          clearCanvas.click();
+          e.preventDefault();
+        }
+      });
+
+      // Touch event support for mobile devices
+      canvas.addEventListener("touchstart", startDraw, { passive: false });
+      canvas.addEventListener("touchmove", drawing, { passive: false });
+      canvas.addEventListener("touchend", endDraw);
+
+      // Mouse event support
       canvas.addEventListener("mousedown", startDraw);
       canvas.addEventListener("mousemove", drawing);
-      canvas.addEventListener("mouseup", () => isDrawing = false);
+      canvas.addEventListener("mouseup", endDraw);
+      canvas.addEventListener("mouseout", endDraw);
 
-      // Touch events for mobile
-      canvas.addEventListener("touchstart", startDraw);
-      canvas.addEventListener("touchmove", drawing);
-      canvas.addEventListener("touchend", () => isDrawing = false);
-
-      // Enhanced text tool logic for mobile
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || window.innerWidth <= 768;
-
-      const createTextInput = (x, y) => {
-          if (isMobile) {
-              // Use mobile overlay for better UX
-              pendingTextPosition = { x, y };
-              mobileTextOverlay.style.display = 'flex';
-              setTimeout(() => {
-                  mobileTextInput.focus();
-              }, 100);
-          } else {
-              // Desktop version
-              if (document.querySelector('.canvas-text-input')) return;
-              
-              const textInput = document.createElement("input");
-              textInput.type = "text";
-              textInput.className = "canvas-text-input";
-              textInput.style.left = `${x}px`;
-              textInput.style.top = `${y}px`;
-              textInput.onblur = () => {
-                  const value = textInput.value;
-                  if (value.trim()) {
-                      ctx.fillStyle = selectedColor;
-                      ctx.font = `${brushWidth * 3}px Poppins`;
-                      ctx.fillText(value, x, y + brushWidth * 3);
-                  }
-                  textInput.remove();
-              };
-              textInput.addEventListener('keypress', (e) => {
-                  if (e.key === 'Enter') {
-                      textInput.blur();
-                  }
-              });
-              document.body.appendChild(textInput);
-              textInput.focus();
-          }
-      };
-
-      // Mobile text input handlers
-      mobileTextDone.addEventListener('click', () => {
-          const value = mobileTextInput.value.trim();
-          if (value && pendingTextPosition) {
-              ctx.fillStyle = selectedColor;
-              ctx.font = `${Math.max(brushWidth * 3, 16)}px Poppins`;
-              ctx.fillText(value, pendingTextPosition.x, pendingTextPosition.y + Math.max(brushWidth * 3, 16));
-          }
-          mobileTextOverlay.style.display = 'none';
-          mobileTextInput.value = '';
-          pendingTextPosition = null;
-      });
-
-      mobileTextCancel.addEventListener('click', () => {
-          mobileTextOverlay.style.display = 'none';
-          mobileTextInput.value = '';
-          pendingTextPosition = null;
-      });
-
-      // Handle Enter key in mobile text input
-      mobileTextInput.addEventListener('keypress', (e) => {
-          if (e.key === 'Enter') {
-              mobileTextDone.click();
-          }
-      });
-
-      canvas.addEventListener("click", (e) => {
-          if (selectedTool === "text") {
-              const rect = canvas.getBoundingClientRect();
-              createTextInput(e.clientX - rect.left, e.clientY - rect.top);
-          }
-      });
-
-      // Clipboard paste functionality for images
-      let showingPasteHint = false;
-
-      document.addEventListener('paste', async (e) => {
-          const items = e.clipboardData.items;
-          for (let item of items) {
-              if (item.type.indexOf('image') !== -1) {
-                  const file = item.getAsFile();
-                  const reader = new FileReader();
-                  reader.onload = (event) => {
-                      const img = new Image();
-                      img.onload = () => {
-                          // Calculate scaling to fit canvas
-                          const maxWidth = canvas.width * 0.7;
-                          const maxHeight = canvas.height * 0.7;
-                          let { width, height } = img;
-                          
-                          if (width > maxWidth) {
-                              height = (height * maxWidth) / width;
-                              width = maxWidth;
-                          }
-                          if (height > maxHeight) {
-                              width = (width * maxHeight) / height;
-                              height = maxHeight;
-                          }
-                          
-                          // Center the image
-                          const x = (canvas.width - width) / 2;
-                          const y = (canvas.height - height) / 2;
-                          
-                          ctx.drawImage(img, x, y, width, height);
-                          
-                          // Hide paste hint if showing
-                          if (showingPasteHint) {
-                              imagePasteHint.style.display = 'none';
-                              showingPasteHint = false;
-                          }
-                      };
-                      img.src = event.target.result;
-                  };
-                  reader.readAsDataURL(file);
-                  break;
-              }
-          }
-      });
-
-      // Show paste hint when user tries to paste
-      document.addEventListener('keydown', (e) => {
-          if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
-              if (!showingPasteHint) {
-                  imagePasteHint.style.display = 'block';
-                  showingPasteHint = true;
-                  setTimeout(() => {
-                      if (showingPasteHint) {
-                          imagePasteHint.style.display = 'none';
-                          showingPasteHint = false;
-                      }
-                  }, 3000);
-              }
-          }
-      });
-
-      // Drag and drop functionality
-      canvas.addEventListener('dragover', (e) => {
-          e.preventDefault();
-          canvas.style.opacity = '0.7';
-      });
-
-      canvas.addEventListener('dragleave', () => {
-          canvas.style.opacity = '1';
-      });
-
-      canvas.addEventListener('drop', (e) => {
-          e.preventDefault();
-          canvas.style.opacity = '1';
-          
-          const files = e.dataTransfer.files;
-          if (files.length > 0 && files[0].type.startsWith('image/')) {
-              const reader = new FileReader();
-              reader.onload = (event) => {
-                  const img = new Image();
-                  img.onload = () => {
-                      // Calculate scaling to fit canvas
-                      const maxWidth = canvas.width * 0.8;
-                      const maxHeight = canvas.height * 0.8;
-                      let { width, height } = img;
-                      
-                      if (width > maxWidth) {
-                          height = (height * maxWidth) / width;
-                          width = maxWidth;
-                      }
-                      if (height > maxHeight) {
-                          width = (width * maxHeight) / height;
-                          height = maxHeight;
-                      }
-                      
-                      // Center the image
-                      const x = (canvas.width - width) / 2;
-                      const y = (canvas.height - height) / 2;
-                      
-                      ctx.drawImage(img, x, y, width, height);
-                  };
-                  img.src = event.target.result;
-              };
-              reader.readAsDataURL(files[0]);
-          }
-      });
-
-      // Fullscreen toggle
-      document.querySelector(".fullscreen-toggle").addEventListener("click", () => {
-          if (!document.fullscreenElement) {
-              document.documentElement.requestFullscreen();
-          } else {
-              document.exitFullscreen();
-          }
-      });
-
-      // Responsive canvas resizing on window size change
-      window.addEventListener("resize", resizeCanvas);
-
-      // Prevent scrolling when touching the canvas
-      document.body.addEventListener("touchstart", (e) => {
-          if (e.target === canvas) {
-              e.preventDefault();
-          }
-      }, { passive: false });
-
-      document.body.addEventListener("touchend", (e) => {
-          if (e.target === canvas) {
-              e.preventDefault();
-          }
-      }, { passive: false });
-
-      document.body.addEventListener("touchmove", (e) => {
-          if (e.target === canvas) {
-              e.preventDefault();
-          }
-      }, { passive: false });
-
-      // Close mobile text overlay when clicking outside
-      mobileTextOverlay.addEventListener('click', (e) => {
-          if (e.target === mobileTextOverlay) {
-              mobileTextCancel.click();
-          }
-      });
-
-      // Handle screen orientation change
-      window.addEventListener('orientationchange', () => {
-          setTimeout(resizeCanvas, 100);
-      });
+      // Initialize color picker button background
+      colorPicker.parentElement.style.background = colorPicker.value;
     </script>
   </body>
 </html>
