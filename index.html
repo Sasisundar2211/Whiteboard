@@ -3,52 +3,423 @@
   <head>
     <meta charset="utf-8">
     <title>Drawing App</title>
-    <link rel="stylesheet" href="style.css">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <script src="script.js" defer></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap');
+      
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: 'Poppins', sans-serif;
+      }
+      
+      body {
+        background: #4A98F7;
+        overflow: hidden;
+        height: 100vh;
+        width: 100vw;
+        position: fixed;
+        top: 0;
+        left: 0;
+      }
+      
+      .container {
+        display: flex;
+        width: 100%;
+        height: 100vh;
+        gap: 8px;
+        padding: 8px;
+        flex-direction: row;
+      }
+      
+      section {
+        background: #fff;
+        border-radius: 7px;
+      }
+      
+      .tools-board {
+        width: 220px;
+        padding: 12px 15px 0;
+        overflow-y: auto;
+        flex-shrink: 0;
+        max-height: 100vh;
+      }
+      
+      .tools-board .row {
+        margin-bottom: 15px;
+      }
+      
+      .row .options {
+        list-style: none;
+        margin: 8px 0 0 5px;
+      }
+      
+      .row .options .option {
+        display: flex;
+        cursor: pointer;
+        align-items: center;
+        margin-bottom: 8px;
+        padding: 4px;
+        border-radius: 4px;
+        transition: background-color 0.2s;
+      }
+      
+      .option:is(:hover, .active) {
+        background-color: #f8f9fa;
+      }
+      
+      .option:is(:hover, .active) img {
+        filter: invert(17%) sepia(90%) saturate(3000%) hue-rotate(900deg) brightness(100%) contrast(100%);
+      }
+      
+      .option :where(span, label) {
+        color: #5A6168;
+        cursor: pointer;
+        padding-left: 8px;
+        font-size: 0.9rem;
+      }
+      
+      .option:is(:hover, .active) :where(span, label) {
+        color: #4A98F7;
+      }
+      
+      .option img {
+        width: 16px;
+        height: 16px;
+      }
+      
+      .option #fill-color {
+        cursor: pointer;
+        height: 14px;
+        width: 14px;
+      }
+      
+      #fill-color:checked ~ label {
+        color: #4A98F7;
+      }
+      
+      .option #size-slider {
+        width: 100%;
+        height: 5px;
+        margin-top: 8px;
+      }
+      
+      .colors .options {
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+      
+      .colors .option {
+        height: 18px;
+        width: 18px;
+        border-radius: 50%;
+        margin-top: 3px;
+        position: relative;
+        flex-shrink: 0;
+      }
+      
+      .colors .option:nth-child(1) {
+        background-color: #fff;
+        border: 1px solid #bfbfbf;
+      }
+      
+      .colors .option:nth-child(2) {
+        background-color: #000;
+      }
+      
+      .colors .option:nth-child(3) {
+        background-color: #E02020;
+      }
+      
+      .colors .option:nth-child(4) {
+        background-color: #6DD400;
+      }
+      
+      .colors .option:nth-child(5) {
+        background-color: #4A98F7;
+      }
+      
+      .colors .option.selected::before {
+        position: absolute;
+        content: "";
+        top: 50%;
+        left: 50%;
+        height: 10px;
+        width: 10px;
+        background: inherit;
+        border-radius: inherit;
+        border: 2px solid #fff;
+        transform: translate(-50%, -50%);
+      }
+      
+      .colors .option:first-child.selected::before {
+        border-color: #ccc;
+      }
+      
+      .option #color-picker {
+        opacity: 0;
+        cursor: pointer;
+      }
+      
+      .title {
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: #333;
+      }
+      
+      .buttons button {
+        width: 100%;
+        color: #fff;
+        border: none;
+        outline: none;
+        padding: 8px 0;
+        font-size: 0.8rem;
+        margin-bottom: 8px;
+        background: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+      
+      .buttons .clear-canvas {
+        color: #6C757D;
+        border: 1px solid #6C757D;
+      }
+      
+      .clear-canvas:hover {
+        color: #fff;
+        background: #6C757D;
+      }
+      
+      .buttons .save-img {
+        background: #4A98F7;
+        border: 1px solid #4A98F7;
+      }
+      
+      .buttons .fullscreen-toggle {
+        background: #28a745;
+        border: 1px solid #28a745;
+      }
+      
+      .drawing-board {
+        flex: 1;
+        overflow: hidden;
+        position: relative;
+        min-height: 0;
+      }
+      
+      .drawing-board canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        cursor: crosshair;
+        touch-action: none;
+      }
+      
+      .canvas-text-input {
+        position: absolute;
+        border: 1px solid #ccc;
+        font: inherit;
+        padding: 4px;
+        background: white;
+        z-index: 1000;
+        border-radius: 3px;
+      }
+      
+      /* Mobile Styles */
+      @media (max-width: 768px) {
+        .container {
+          flex-direction: column;
+          padding: 4px;
+          gap: 4px;
+        }
+        
+        .tools-board {
+          width: 100%;
+          padding: 8px 10px;
+          max-height: 180px;
+          overflow-y: auto;
+          order: 2;
+        }
+        
+        .tools-board .row {
+          margin-bottom: 10px;
+        }
+        
+        .row .options {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+          margin: 5px 0;
+        }
+        
+        .row .options .option {
+          margin-bottom: 4px;
+          padding: 6px 8px;
+          border-radius: 6px;
+          border: 1px solid #e0e0e0;
+          background: #f8f9fa;
+          min-width: fit-content;
+        }
+        
+        .option :where(span, label) {
+          font-size: 0.8rem;
+          padding-left: 4px;
+        }
+        
+        .colors .options {
+          justify-content: flex-start;
+          gap: 8px;
+        }
+        
+        .colors .option {
+          height: 24px;
+          width: 24px;
+        }
+        
+        .buttons {
+          display: flex;
+          gap: 4px;
+        }
+        
+        .buttons button {
+          flex: 1;
+          padding: 8px 4px;
+          font-size: 0.7rem;
+          margin-bottom: 0;
+        }
+        
+        .drawing-board {
+          order: 1;
+          flex: 1;
+          height: calc(100vh - 200px);
+        }
+        
+        .title {
+          font-size: 0.8rem;
+          margin-bottom: 4px;
+        }
+        
+        .option #size-slider {
+          width: 80px;
+        }
+        
+        .shapes-tools {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 4px;
+        }
+        
+        .shapes-tools .option {
+          flex: 1;
+          min-width: 60px;
+          justify-content: center;
+        }
+      }
+      
+      @media (max-width: 480px) {
+        .tools-board {
+          max-height: 160px;
+          padding: 6px 8px;
+        }
+        
+        .drawing-board {
+          height: calc(100vh - 180px);
+        }
+        
+        .buttons button {
+          font-size: 0.65rem;
+          padding: 6px 2px;
+        }
+        
+        .option :where(span, label) {
+          font-size: 0.7rem;
+        }
+        
+        .colors .option {
+          height: 20px;
+          width: 20px;
+        }
+      }
+      
+      /* Hide scrollbars but keep functionality */
+      .tools-board::-webkit-scrollbar {
+        width: 4px;
+      }
+      
+      .tools-board::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 2px;
+      }
+      
+      .tools-board::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 2px;
+      }
+      
+      .tools-board::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+      }
+    </style>
   </head>
   <body>
     <div class="container">
       <section class="tools-board">
         <div class="row">
           <label class="title">Shapes</label>
-          <ul class="options">
+          <ul class="options shapes-tools">
             <li class="option tool" id="rectangle">
-              <img src="rectangle.svg" alt="">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              </svg>
               <span>Rectangle</span>
             </li>
             <li class="option tool" id="circle">
-              <img src="circle.svg" alt="">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"/>
+              </svg>
               <span>Circle</span>
             </li>
             <li class="option tool" id="triangle">
-              <img src="triangle.svg" alt="">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon points="12,2 22,20 2,20"/>
+              </svg>
               <span>Triangle</span>
             </li>
             <li class="option">
               <input type="checkbox" id="fill-color">
-              <label for="fill-color">Fill color</label>
+              <label for="fill-color">Fill</label>
             </li>
           </ul>
         </div>
         <div class="row">
-          <label class="title">Options</label>
+          <label class="title">Tools</label>
           <ul class="options">
             <li class="option active tool" id="brush">
-              <img src="brush.svg" alt="">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/>
+                <path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/>
+              </svg>
               <span>Brush</span>
             </li>
             <li class="option tool" id="eraser">
-              <img src="eraser.svg" alt="">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/>
+                <path d="M22 21H7"/>
+                <path d="m5 11 9 9"/>
+              </svg>
               <span>Eraser</span>
             </li>
             <li class="option tool" id="text">
-              <img src="text.svg" alt="">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="4,7 4,4 20,4 20,7"/>
+                <line x1="9" y1="20" x2="15" y2="20"/>
+                <line x1="12" y1="4" x2="12" y2="20"/>
+              </svg>
               <span>Text</span>
-            </li>
-            <li class="option tool" id="image">
-              <img src="image.svg" alt="">
-              <span>Image</span>
             </li>
             <li class="option">
               <input type="range" id="size-slider" min="1" max="30" value="5">
@@ -68,9 +439,9 @@
           </ul>
         </div>
         <div class="row buttons">
-          <button class="clear-canvas">Clear Canvas</button>
-          <button class="save-img">Save As Image</button>
-          <button class="fullscreen-toggle">Toggle Fullscreen</button>
+          <button class="clear-canvas">Clear</button>
+          <button class="save-img">Save</button>
+          <button class="fullscreen-toggle">Fullscreen</button>
         </div>
       </section>
       <section class="drawing-board">
@@ -78,5 +449,234 @@
       </section>
     </div>
     <input type="file" id="img-upload" accept="image/*" style="display:none;">
+
+    <script>
+      const canvas = document.querySelector("canvas"),
+      toolBtns = document.querySelectorAll(".tool"),
+      fillColor = document.querySelector("#fill-color"),
+      sizeSlider = document.querySelector("#size-slider"),
+      colorBtns = document.querySelectorAll(".colors .option"),
+      colorPicker = document.querySelector("#color-picker"),
+      clearCanvas = document.querySelector(".clear-canvas"),
+      saveImg = document.querySelector(".save-img"),
+      imgUpload = document.querySelector("#img-upload"),
+      ctx = canvas.getContext("2d");
+
+      let prevMouseX, prevMouseY, snapshot,
+      isDrawing = false,
+      selectedTool = "brush",
+      brushWidth = 5,
+      selectedColor = "#000";
+
+      const setCanvasBackground = () => {
+          ctx.fillStyle = "#fff";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = selectedColor;
+      };
+
+      const resizeCanvas = () => {
+          const canvasRect = canvas.getBoundingClientRect();
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          canvas.width = canvasRect.width;
+          canvas.height = canvasRect.height;
+          setCanvasBackground();
+          // Restore the image if it exists
+          if (imageData.width > 0 && imageData.height > 0) {
+              ctx.putImageData(imageData, 0, 0);
+          }
+      };
+
+      window.addEventListener("load", () => {
+          resizeCanvas();
+      });
+
+      const drawRect = (e) => {
+          const rect = canvas.getBoundingClientRect();
+          const x = (e.clientX || e.touches[0].clientX) - rect.left;
+          const y = (e.clientY || e.touches[0].clientY) - rect.top;
+          
+          if(!fillColor.checked) {
+              return ctx.strokeRect(x, y, prevMouseX - x, prevMouseY - y);
+          }
+          ctx.fillRect(x, y, prevMouseX - x, prevMouseY - y);
+      };
+
+      const drawCircle = (e) => {
+          const rect = canvas.getBoundingClientRect();
+          const x = (e.clientX || e.touches[0].clientX) - rect.left;
+          const y = (e.clientY || e.touches[0].clientY) - rect.top;
+          
+          ctx.beginPath();
+          let radius = Math.sqrt(Math.pow((prevMouseX - x), 2) + Math.pow((prevMouseY - y), 2));
+          ctx.arc(prevMouseX, prevMouseY, radius, 0, 2 * Math.PI);
+          fillColor.checked ? ctx.fill() : ctx.stroke();
+      };
+
+      const drawTriangle = (e) => {
+          const rect = canvas.getBoundingClientRect();
+          const x = (e.clientX || e.touches[0].clientX) - rect.left;
+          const y = (e.clientY || e.touches[0].clientY) - rect.top;
+          
+          ctx.beginPath();
+          ctx.moveTo(prevMouseX, prevMouseY);
+          ctx.lineTo(x, y);
+          ctx.lineTo(prevMouseX * 2 - x, y);
+          ctx.closePath();
+          fillColor.checked ? ctx.fill() : ctx.stroke();
+      };
+
+      const getEventPos = (e) => {
+          const rect = canvas.getBoundingClientRect();
+          return {
+              x: (e.clientX || e.touches[0].clientX) - rect.left,
+              y: (e.clientY || e.touches[0].clientY) - rect.top
+          };
+      };
+
+      const startDraw = (e) => {
+          e.preventDefault();
+          isDrawing = true;
+          const pos = getEventPos(e);
+          prevMouseX = pos.x;
+          prevMouseY = pos.y;
+          ctx.beginPath();
+          ctx.lineWidth = brushWidth;
+          ctx.strokeStyle = selectedColor;
+          ctx.fillStyle = selectedColor;
+          snapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      };
+
+      const drawing = (e) => {
+          e.preventDefault();
+          if(!isDrawing) return;
+          ctx.putImageData(snapshot, 0, 0);
+          const pos = getEventPos(e);
+          
+          if(selectedTool === "brush" || selectedTool === "eraser") {
+              ctx.strokeStyle = selectedTool === "eraser" ? "#fff" : selectedColor;
+              ctx.lineTo(pos.x, pos.y);
+              ctx.stroke();
+          } else if(selectedTool === "rectangle") {
+              drawRect(e);
+          } else if(selectedTool === "circle") {
+              drawCircle(e);
+          } else if(selectedTool === "triangle") {
+              drawTriangle(e);
+          }
+      };
+
+      toolBtns.forEach(btn => {
+          btn.addEventListener("click", () => {
+              document.querySelector(".options .active")?.classList.remove("active");
+              btn.classList.add("active");
+              selectedTool = btn.id;
+              canvas.style.cursor = selectedTool === "text" ? "text" : "crosshair";
+          });
+      });
+
+      sizeSlider.addEventListener("change", () => brushWidth = sizeSlider.value);
+
+      colorBtns.forEach(btn => {
+          btn.addEventListener("click", () => {
+              document.querySelector(".options .selected")?.classList.remove("selected");
+              btn.classList.add("selected");
+              selectedColor = window.getComputedStyle(btn).getPropertyValue("background-color");
+          });
+      });
+
+      colorPicker.addEventListener("change", () => {
+          colorPicker.parentElement.style.background = colorPicker.value;
+          colorPicker.parentElement.click();
+      });
+
+      clearCanvas.addEventListener("click", () => {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          setCanvasBackground();
+      });
+
+      saveImg.addEventListener("click", () => {
+          const link = document.createElement("a");
+          link.download = `drawing-${Date.now()}.jpg`;
+          link.href = canvas.toDataURL();
+          link.click();
+      });
+
+      // Mouse events
+      canvas.addEventListener("mousedown", startDraw);
+      canvas.addEventListener("mousemove", drawing);
+      canvas.addEventListener("mouseup", () => isDrawing = false);
+
+      // Touch events for mobile
+      canvas.addEventListener("touchstart", startDraw);
+      canvas.addEventListener("touchmove", drawing);
+      canvas.addEventListener("touchend", () => isDrawing = false);
+
+      // Text tool logic
+      let textInput = null;
+
+      const createTextInput = (x, y) => {
+          if (textInput) return;
+          textInput = document.createElement("input");
+          textInput.type = "text";
+          textInput.className = "canvas-text-input";
+          textInput.style.left = `${x}px`;
+          textInput.style.top = `${y}px`;
+          textInput.onblur = () => {
+              const value = textInput.value;
+              if (value.trim()) {
+                  ctx.fillStyle = selectedColor;
+                  ctx.font = `${brushWidth * 3}px Poppins`;
+                  ctx.fillText(value, x, y + brushWidth * 3);
+              }
+              textInput.remove();
+              textInput = null;
+          };
+          textInput.addEventListener('keypress', (e) => {
+              if (e.key === 'Enter') {
+                  textInput.blur();
+              }
+          });
+          document.body.appendChild(textInput);
+          textInput.focus();
+      };
+
+      canvas.addEventListener("click", (e) => {
+          if (selectedTool === "text") {
+              const rect = canvas.getBoundingClientRect();
+              createTextInput(e.clientX - rect.left, e.clientY - rect.top);
+          }
+      });
+
+      // Fullscreen toggle
+      document.querySelector(".fullscreen-toggle").addEventListener("click", () => {
+          if (!document.fullscreenElement) {
+              document.documentElement.requestFullscreen();
+          } else {
+              document.exitFullscreen();
+          }
+      });
+
+      // Responsive canvas resizing on window size change
+      window.addEventListener("resize", resizeCanvas);
+
+      // Prevent scrolling when touching the canvas
+      document.body.addEventListener("touchstart", (e) => {
+          if (e.target === canvas) {
+              e.preventDefault();
+          }
+      }, { passive: false });
+
+      document.body.addEventListener("touchend", (e) => {
+          if (e.target === canvas) {
+              e.preventDefault();
+          }
+      }, { passive: false });
+
+      document.body.addEventListener("touchmove", (e) => {
+          if (e.target === canvas) {
+              e.preventDefault();
+          }
+      }, { passive: false });
+    </script>
   </body>
 </html>
